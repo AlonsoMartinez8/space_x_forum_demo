@@ -67,30 +67,48 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
 
       const systemId = Date.now()
 
-      const { data, error } = await supabase
-        .from('message')
-        .insert({
-          content,
-          room_name: roomName,
-          user_name: username,
-          system_id: systemId,
-        })
-        .select()
-        .single<Message>()
+      let createdMessage: Message | null = null
 
-      if (error || !data) {
+      try {
+        const response = await fetch('/api/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content,
+            roomName,
+            username,
+            systemId,
+          }),
+        })
+
+        if (!response.ok) {
+          const { error } = (await response.json().catch(() => ({}))) as {
+            error?: string
+          }
+          throw new Error(error ?? 'Failed to persist message')
+        }
+
+        const { message } = (await response.json()) as { message: Message }
+        createdMessage = message
+      } catch (error) {
         console.error('Failed to persist message', error)
         return
       }
 
+      if (!createdMessage) {
+        return
+      }
+
       const message: ChatMessage = {
-        id: data.id.toString(),
-        content: data.content ?? '',
+        id: createdMessage.id.toString(),
+        content: createdMessage.content ?? '',
         user: {
-          name: data.user_name,
+          name: createdMessage.user_name,
         },
-        createdAt: data.created_at,
-        roomName: data.room_name,
+        createdAt: createdMessage.created_at,
+        roomName: createdMessage.room_name,
       }
 
       setMessages((current) => {
@@ -108,7 +126,7 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
         payload: message,
       })
     },
-    [channel, isConnected, roomName, supabase, username]
+    [channel, isConnected, roomName, username]
   )
 
   return { messages, sendMessage, isConnected }

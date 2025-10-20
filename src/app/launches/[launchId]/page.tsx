@@ -6,13 +6,13 @@ import { createClient } from "@/lib/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
 interface Props {
-    params: {
+    params: Promise<{
         launchId: string;
-    };
+    }>;
 }
 
 export default async function LaunchDetailPage({ params }: Props) {
-    const { launchId } = params;
+    const { launchId } = await params;
     const root = process.env.NEXT_PUBLIC_SPACE_X_API_ROOT;
     const path = process.env.NEXT_PUBLIC_SPACE_X_API_LAUNCHES;
     const url = `${root}${path}${launchId}`;
@@ -52,8 +52,9 @@ export default async function LaunchDetailPage({ params }: Props) {
     );
 
     const { userId } = await auth();
-    const username =
-        userId && (await (await clerkClient()).users.getUser(userId)).username;
+    const username = userId
+        ? (await clerkClient.users.getUser(userId)).username
+        : null;
 
     return (
         <div className="h-screen flex flex-col">
