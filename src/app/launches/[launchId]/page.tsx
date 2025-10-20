@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default async function LaunchDetailPage({ params }: Props) {
-    const { launchId } = params;
+    const { launchId } = await params;
     const root = process.env.NEXT_PUBLIC_SPACE_X_API_ROOT;
     const path = process.env.NEXT_PUBLIC_SPACE_X_API_LAUNCHES;
     const url = `${root}${path}${launchId}`;
