@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/client'
 import { useCallback, useEffect, useState } from 'react'
+import type { Message } from '@/types'
 
 interface UseRealtimeChatProps {
   roomName: string
@@ -15,6 +16,7 @@ export interface ChatMessage {
     name: string
   }
   createdAt: string
+  roomName?: string
 }
 
 const EVENT_MESSAGE_TYPE = 'message'
@@ -30,7 +32,19 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
 
     newChannel
       .on('broadcast', { event: EVENT_MESSAGE_TYPE }, (payload) => {
-        setMessages((current) => [...current, payload.payload as ChatMessage])
+        setMessages((current) => {
+          const incomingMessage = payload.payload as ChatMessage
+
+          const alreadyExists = current.some(
+            (message) => message.id === incomingMessage.id
+          )
+
+          if (alreadyExists) {
+            return current
+          }
+
+          return [...current, incomingMessage]
+        })
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -51,17 +65,42 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
     async (content: string) => {
       if (!channel || !isConnected) return
 
-      const message: ChatMessage = {
-        id: crypto.randomUUID(),
-        content,
-        user: {
-          name: username,
-        },
-        createdAt: new Date().toISOString(),
+      const systemId = Date.now()
+
+      const { data, error } = await supabase
+        .from('message')
+        .insert({
+          content,
+          room_name: roomName,
+          user_name: username,
+          system_id: systemId,
+        })
+        .select()
+        .single<Message>()
+
+      if (error || !data) {
+        console.error('Failed to persist message', error)
+        return
       }
 
-      // Update local state immediately for the sender
-      setMessages((current) => [...current, message])
+      const message: ChatMessage = {
+        id: data.id.toString(),
+        content: data.content ?? '',
+        user: {
+          name: data.user_name,
+        },
+        createdAt: data.created_at,
+        roomName: data.room_name,
+      }
+
+      setMessages((current) => {
+        const alreadyExists = current.some((item) => item.id === message.id)
+        if (alreadyExists) {
+          return current
+        }
+
+        return [...current, message]
+      })
 
       await channel.send({
         type: 'broadcast',
@@ -69,7 +108,7 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
         payload: message,
       })
     },
-    [channel, isConnected, username]
+    [channel, isConnected, roomName, supabase, username]
   )
 
   return { messages, sendMessage, isConnected }

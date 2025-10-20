@@ -1,6 +1,8 @@
 import BaseBanner from "@/components/base-banner";
 import { RealtimeChat } from "@/components/realtime-chat";
-import { Launch } from "@/types";
+import type { ChatMessage } from "@/hooks/use-realtime-chat";
+import { Launch, type Message } from "@/types";
+import { createClient } from "@/lib/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
 interface Props {
@@ -26,6 +28,29 @@ export default async function LaunchDetailPage({ params }: Props) {
 
     const launch: Launch = await res.json();
 
+    const supabase = await createClient();
+    const { data: roomMessages, error: roomMessagesError } = await supabase
+        .from("message")
+        .select("*")
+        .eq("room_name", launchId)
+        .order("created_at", { ascending: true });
+
+    if (roomMessagesError) {
+        console.error("Failed to load room messages", roomMessagesError);
+    }
+
+    const existingMessages: ChatMessage[] = (roomMessages ?? []).map(
+        (message: Message) => ({
+            id: message.id.toString(),
+            content: message.content ?? "",
+            user: {
+                name: message.user_name,
+            },
+            createdAt: message.created_at,
+            roomName: message.room_name,
+        })
+    );
+
     const { userId } = await auth();
     const username =
         userId && (await (await clerkClient()).users.getUser(userId)).username;
@@ -49,7 +74,11 @@ export default async function LaunchDetailPage({ params }: Props) {
                 {username && (
                     <article className="w-full pb-4 flex-1">
                         <div className="w-full h-full   ">
-                            <RealtimeChat roomName={launchId} username={username} />
+                            <RealtimeChat
+                                roomName={launchId}
+                                username={username}
+                                messages={existingMessages}
+                            />
                         </div>
                     </article>
                 )}
