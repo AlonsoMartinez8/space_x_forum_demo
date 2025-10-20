@@ -171,3 +171,5 @@ export default async function Home() {
 - Publicar cambios con el commit "ADD: Supabase, ShadCN & Clerk integrations"
 
 - Crear Pull Request, revisar y mergear a DEVELOP
+
+- Crear rutas y estilar app
